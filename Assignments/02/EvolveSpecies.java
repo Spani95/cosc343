@@ -1,0 +1,310 @@
+import java.util.*;
+import java.awt.*;
+import javax.swing.*;
+import java.io.*;
+
+public class EvolveSpecies extends JFrame {
+  
+  private static JFrame frame = new JFrame("Evolve Species");
+  
+  //World information.
+  public static final int world_width = 30;
+  public static final int world_height = 30;
+  private static final int total_timesteps = 50;
+  private static final int total_generations = 10000;
+  public static final int num_creatures = 40;
+  public static final int num_monsters = 10;
+  private static final int pause_time = 10;  //How long to pause between draw_scenes.
+  private static final double chance_of_strawb = 0.05;
+  private static final double chance_of_mushroom = 0.05;
+  
+  private static int timestep = 0;
+  private static int generation = 0;
+  public static Creature [] creatures = new Creature[num_creatures];
+  private static Creature [] old_generation = new Creature[num_creatures];
+  public static Monster [] monsters = new Monster[num_monsters];
+  public static int [][] strawb_array = new int[world_width][world_height];
+  public static int [][] mushroom_array = new int[world_width][world_height];
+  public static int [][] creature_array = new int[world_width][world_height];
+  public static int [][] monster_array = new int[world_width][world_height];
+  public static String [] default_move_actions = {"random", "north", "east", "south", "west"};
+  public static Random rand = new Random();
+  
+  /**
+   *  Checks to see if a monster and a creature are sharing a location,
+   *  is they are it sets the creatures health to 0 and decrements the
+   *  creature_array at that location.
+   */
+  private static void monster_attack(int locationX, int locationY){
+    for (int i = 0; i < num_creatures; i++) {
+      if (creatures[i].locationX == locationX && creatures[i].locationY == locationY) {
+        creatures[i].energy_level = 0;
+        creature_array[locationX][locationY]--;
+      }
+    }
+  }  //End of monster_attack method.
+  
+  /**
+   *  Moves every creature and then checks to see if there was an attack.
+  */
+  private static void creature_step() {
+    for (int i = 0; i < num_creatures; i++) {
+      creatures[i].select_action();
+    }
+    //Checks to see if the is a monster attack for every monster.
+    for (int i = 0; i < num_monsters; i++) {
+      monster_attack(monsters[i].locationX, monsters[i].locationY);
+    }
+  }  //End of creature_step method.
+  
+  /**
+   *  Moves every monster.
+   */
+  private static void monster_step() {
+    for (int i = 0; i < num_monsters; i++) {
+      monsters[i].select_action();
+    }
+  }  //End of monster_step method.
+  
+  /**
+   *  Assigns the fitness_norm and fitness_accum for all the creatures.
+   *  This is used in creating the off springs.
+   */
+  private static void fitness() {
+    int sum = 0;
+    double accum = 0;
+    for (Creature c : creatures) {
+      sum += c.energy_level;
+    }
+    for (Creature c : creatures) {
+      c.fitness_norm = (double)c.energy_level / sum;
+      accum += c.fitness_norm;
+      c.fitness_accum = accum;
+    }
+  }  //End of fitness method.
+  
+  /**
+   *  Keeps going through the while loop until it finds a random
+   *  creature with some energy left which it then returns.
+   * 
+   * @return a creature to be used as a parent for the create_offspring method.
+   */
+  private static Creature find_parent() {
+    double r = rand.nextDouble();
+    
+    while(true) {
+      for (int i = 0; i < num_creatures; i++) {
+        double fitness = old_generation[i].fitness_accum;
+        if (fitness > r) {
+          return old_generation[i];
+        }
+      }
+      r = rand.nextDouble();
+    }
+  }  //End of find_parent method.
+  
+  /**
+   *  Finds parents for each creature in the new generation, 
+   *  then modifies the creatures chromosone values to reflect its parents
+   *  chromosone values. It then makes there be a 1% chance of a mutation
+   *  to occur, if the it does occur it then picks a random chromosone
+   *  to mutate.
+   */
+  private static void create_offspring() {
+    for (int i = 0; i < num_creatures; i++) {
+      Creature parent_1 = find_parent();
+      Creature parent_2 = find_parent();
+      
+      while (parent_1 == parent_2) {
+        parent_2 = find_parent();
+      }
+      creatures[i].chromosone[0] = parent_1.chromosone[0];
+      creatures[i].chromosone[1] = parent_2.chromosone[1];
+      creatures[i].chromosone[2] = parent_1.chromosone[2];
+      creatures[i].chromosone[3] = parent_2.chromosone[3];
+      creatures[i].chromosone[4] = parent_1.chromosone[4];
+      creatures[i].chromosone[5] = parent_2.chromosone[5];
+      creatures[i].chromosone[6] = parent_2.chromosone[6];  //default action.
+      creatures[i].chromosone[7] = parent_1.chromosone[7];
+      creatures[i].chromosone[8] = parent_2.chromosone[8];
+      creatures[i].chromosone[9] = parent_1.chromosone[9];
+      creatures[i].chromosone[10] = parent_2.chromosone[10];
+      creatures[i].chromosone[11] = parent_1.chromosone[11];
+      creatures[i].chromosone[12] = parent_2.chromosone[12];
+      
+      //1% chance of a mutation to take 
+      if (rand.nextInt(100) == 1) {
+        int chromosone_mutation = rand.nextInt(12);
+        if (chromosone_mutation == 0) {
+          creatures[i].chromosone[0] = creatures[i].eat_actions[rand.nextInt(2)];
+        } else if (chromosone_mutation == 1) {
+          creatures[i].chromosone[1] = creatures[i].eat_actions[rand.nextInt(2)];
+        } else if (chromosone_mutation == 2) {
+          creatures[i].chromosone[2] = creatures[i].move_actions[rand.nextInt(4)];
+        } else if (chromosone_mutation == 3) {
+          creatures[i].chromosone[3] = creatures[i].move_actions[rand.nextInt(4)];
+        } else if (chromosone_mutation == 4) {
+          creatures[i].chromosone[4] = creatures[i].move_actions[rand.nextInt(4)];
+        } else if (chromosone_mutation == 5) {
+          creatures[i].chromosone[5] = creatures[i].move_actions[rand.nextInt(4)];
+        } else if (chromosone_mutation == 6) {
+          creatures[i].chromosone[6] = default_move_actions[rand.nextInt(5)];
+        } else if (chromosone_mutation == 7) {
+          creatures[i].chromosone[7] = "" + rand.nextInt(100);
+        } else if (chromosone_mutation == 8) {
+          creatures[i].chromosone[8] = "" + rand.nextInt(100);
+        } else if (chromosone_mutation == 9) {
+          creatures[i].chromosone[9] = "" + rand.nextInt(100);
+        } else if (chromosone_mutation == 10) {
+          creatures[i].chromosone[10] = "" + rand.nextInt(100);
+        } else if (chromosone_mutation == 11) {
+          creatures[i].chromosone[11] = "" + rand.nextInt(100);
+        } else if (chromosone_mutation == 12) {
+          creatures[i].chromosone[12] = "" + rand.nextInt(100);
+        } 
+      }
+    }
+  }  //End of create_offspring method.
+  
+  /**
+   *  Sets the data fields strawb_array, mushroom_array, creatures and monsters,
+   *  it also sets the ctreature objects locationX and locationY values.
+   */
+  private static void initialise() {
+    for(int i = 0; i < world_width; i++) {
+      for(int j = 0; j < world_height; j++) {
+        strawb_array[i][j] = 0;
+        mushroom_array[i][j] = 0;
+        creature_array[i][j] = 0;
+        monster_array[i][j] = 0;
+      }
+    }
+    //initialising strawb_array and mushroom_array whilst making sure there is not a
+    //a strawb and a mushroom in the same location.
+    for(int i = 0; i < world_width; i++) {
+      for(int j = 0; j < world_height; j++) {
+        if (rand.nextDouble() < chance_of_strawb) {
+          strawb_array[i][j] = rand.nextInt(5);
+          mushroom_array[i][j] = 0;
+        } else if(rand.nextDouble() > (1 - chance_of_mushroom)) {
+          mushroom_array[i][j] = rand.nextInt(5);
+          strawb_array[i][j] = 0;
+        } else {
+          strawb_array[i][j] = 0;
+          mushroom_array[i][j] = 0;
+        }
+      }
+    }
+    
+    //initialising the array of creatures and its location array.
+    for (int i = 0; i < num_creatures; i++) {
+      int x = rand.nextInt(world_width);
+      int y = rand.nextInt(world_height);
+      creatures[i] = new Creature(x,y);
+      creature_array[x][y]++;
+    }
+    
+    //initialising the array of monsters and its location array
+    //whilst checking for any creature clashes.
+    for (int i = 0; i < num_monsters; i++) {
+      int x = rand.nextInt(world_width);
+      int y = rand.nextInt(world_height);
+      if (creature_array[x][y] > 0) {
+        i--;
+      } else {
+        monsters[i] = new Monster(x,y);
+        monster_array[x][y]++;
+      }
+    }
+  }  //End of initialise method.
+  
+  /**
+   *  Adds the relevant labels to the JFrame data field.
+   */
+  private static void draw_scene() {
+    JPanel grid = new JPanel();
+    grid.setLayout(new GridLayout(world_width, world_height));
+    for (int i = 0; i < world_width; i++) {
+      for (int j = 0; j < world_height; j++) {
+        if (creature_array[i][j] != 0) {
+          grid.add(new JLabel("[C]"));
+        } else if (monster_array[i][j] != 0) {
+          grid.add(new JLabel("[M]"));
+        } else if (strawb_array[i][j] != 0) {
+          grid.add(new JLabel("[s]"));
+        } else if (mushroom_array[i][j] != 0) {
+          grid.add(new JLabel("[m]"));
+        } else {
+          grid.add(new JLabel("[ ]"));
+        }
+      }
+    }
+    
+    frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+    frame.add(grid);
+    frame.pack();
+    frame.setVisible(true);
+  }  //End of draw_scene method.
+  
+  /**
+   *  
+   */
+  public static void main(String [] args) {
+    //Writer to add the average energy level of each generation to a text 
+    //file to create my graph with.
+    Writer writer = null;
+    try {
+      writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream("graph_data.txt"), "utf-8"));
+      
+      initialise();
+      draw_scene();
+      while (generation < total_generations) {
+        while (timestep < total_timesteps) {
+          creature_step();
+          if (timestep % 2 == 0) {
+            monster_step();
+          }
+          try {
+            Thread.sleep(pause_time);  //wait.
+          } catch(InterruptedException ex) {
+            Thread.currentThread().interrupt();
+          }
+          draw_scene();
+          timestep++;
+        }
+        
+        int average_energy = 0;
+        for (int i = 0; i < num_creatures; i++) {
+          average_energy += creatures[i].energy_level;
+        }
+        average_energy = average_energy / num_creatures;
+        System.out.println("Generation: " + generation + " average energy: " + average_energy);
+        
+        writer.append(average_energy + "\r\n");
+        
+        Arrays.sort(creatures, new Comparator<Creature>() {
+          @Override
+          public int compare(Creature o1, Creature o2) {
+            Integer value1 = (Integer)o1.energy_level;
+            Integer value2 = (Integer)o2.energy_level;
+            return value1.compareTo(value2);
+          }
+        });
+        fitness();
+        old_generation = creatures.clone();
+        initialise();
+        create_offspring();
+        draw_scene();
+        timestep = 0;
+        generation++;
+        
+      }
+    } catch (IOException ex) {
+      // report
+    } finally {
+      try {writer.close();} catch (Exception ex) {/*ignore*/}
+    }
+    System.out.println("Done!");
+  }  //End of main method.
+  
+}  //End of EvolceSpecies class.
